@@ -42,7 +42,7 @@ To compile the application yourself, make sure you have the [.NET 10 SDK](https:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/fortnite-edit-on-release.git](https://github.com/verysteelsmaker/Edit-On-Release-Fortnite
+   git clone https://github.com/verysteelsmaker/Edit-On-Release-Fortnite
    cd Edit-On-Release-Fortnite
    ```
 2. Publish as a self-contained single-file executable for Windows x64:
