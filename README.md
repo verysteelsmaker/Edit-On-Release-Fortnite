@@ -1,54 +1,58 @@
 # Fortnite Edit on Release Macro
 
-Легковесный и быстрый макрос на C# для симуляции функции **«Edit on Release»** (Редактирование при отпускании) в Fortnite. 
+A lightweight, high-performance C# Windows Forms application that simulates the **"Edit on Release"** functionality for Fortnite.
 
-Позволяет автоматически подтверждать редактирование постройки сразу после того, как вы отпускаете левую кнопку мыши (LMB), имитируя стандартное поведение функции на любой удобной вам клавише клавиатуры или кнопке мыши (включая боковые кнопки).
+It automatically confirms your building edits as soon as you release the Left Mouse Button (LMB), replicating the native edit-on-release behavior. It works with any key bind (keyboard keys or mouse buttons, including side buttons).
+
+---
+
+## 🚀 Features
+
+* **Low Latency**: Built using low-level global Windows hooks (`SetWindowsHookEx`) and `SendInput` API for direct input injection.
+* **Universal Bindings**: Works with keyboard keys and mouse buttons (Right Click, Middle Click, Side Buttons XButton1/XButton2).
+* **Game Engine Compatibility**: Simulates hardware **Scan Codes** (via `MapVirtualKey`) and implements a micro-delay (15ms) between key-down and key-up events, which is necessary for Unreal Engine to process the input correctly.
+* **Instant Toggle**: Use the global hotkey **`F10`** to enable or disable the macro instantly while in-game without alt-tabbing.
+* **Sleek Dark GUI**: Minimalist dark-themed user interface with a real-time status indicator.
+* **Zero Dependencies**: Compiled as a self-contained single-file executable (`.exe`). Runs out of the box without requiring .NET installation.
+
+---
+
+## 📸 Preview
 
 ![Fortnite Edit Preview](photo.jpg)
 
 ---
 
-## 🚀 Особенности
+## 🛠️ Installation & Usage
 
-* **Низкая задержка (Low Latency)**: Использует глобальные низкоуровневые хуки Windows (`SetWindowsHookEx`) и прямой ввод `SendInput`.
-* **Поддержка любых клавиш**: Вы можете привязать редактирование на любую клавишу клавиатуры или кнопку мыши (Right Click, Middle Click, Side Buttons X1/X2).
-* **Корректная работа в играх**: Симуляция ввода отправляет физические **скан-коды (Scan Codes)** и имеет микро-задержку (15 мс) между нажатием и отпусканием, что позволяет обходить фильтрацию ввода в играх на движках Unreal Engine.
-* **Быстрое переключение**: Возможность мгновенно включать и выключать макрос прямо во время игры с помощью глобальной горячей клавиши **F10**.
-* **Стильный Dark-интерфейс**: Простой и аккуратный графический интерфейс в темных тонах с индикатором статуса.
-* **Без лишних файлов**: Скомпилирован в виде единого автономного файла `.exe` (Self-Contained Single File), не требующего установки дополнительных библиотек или .NET.
+1. Download the compiled executable or build it from source.
+2. **Important:** Right-click `Edit_on_release.exe` and select **"Run as Administrator"**. (This is required because Fortnite runs with elevated privileges due to anti-cheat, and Windows blocks inputs sent from standard applications).
+3. In the program UI, click the **"Edit Key: ..."** button. It will change to `Press any Key or Mouse Button...`.
+4. Press the key or mouse button that you use to start editing in Fortnite (e.g., `F`, `G`, or a Side Mouse Button).
+5. Minimize the application.
+6. In game: press your edit key, click and drag LMB to select tiles, and release LMB. The macro will automatically trigger the edit key to confirm the edit.
 
----
-
-## 🛠️ Как запустить и использовать
-
-1. Скачайте последнюю версию исполняемого файла из раздела релизов или скомпилируйте самостоятельно.
-2. **Важно:** Нажмите правой кнопкой мыши на `Edit_on_release.exe` и выберите **«Запуск от имени администратора»** (это необходимо, так как Fortnite запущен с повышенными привилегиями из-за античита, и Windows блокирует ввод от обычных приложений).
-3. В окне программы нажмите на кнопку **«Edit Key: ...»**. Текст изменится на `Press any Key or Mouse Button...`.
-4. Нажмите клавишу на клавиатуре или кнопку мыши, которую вы используете в настройках игры для начала редактирования (например, `F` или `G`, либо боковую кнопку мыши).
-5. Сверните программу.
-6. В игре: нажмите кнопку редактирования постройки, зажмите ЛКМ для выбора плиток, отпустите ЛКМ — редактирование подтвердится автоматически!
-
-> 💡 **Совет:** Во время игры вы можете нажать клавишу **`F10`**, чтобы приостановить или возобновить работу макроса, не сворачивая игру. Индикатор в программе изменит цвет на красный (неактивен) или зеленый (активен).
+> 💡 **Tip:** Press **`F10`** globally to toggle the macro on/off. The indicator light will change to green (Active) or red (Inactive).
 
 ---
 
-## 📦 Сборка из исходников
+## 📦 Building from Source
 
-Если вы хотите скомпилировать проект самостоятельно, вам понадобится [.NET 10 SDK](https://dotnet.microsoft.com/download):
+To compile the application yourself, make sure you have the [.NET 10 SDK](https://dotnet.microsoft.com/download) installed:
 
-1. Клонируйте репозиторий:
+1. Clone the repository:
    ```bash
    git clone https://github.com/your-username/fortnite-edit-on-release.git
    cd fortnite-edit-on-release
    ```
-2. Опубликуйте проект в виде единого файла для Windows x64:
+2. Publish as a self-contained single-file executable for Windows x64:
    ```bash
    dotnet publish -c Release -r win-x64 -p:PublishSingleFile=true -p:SelfContained=true -p:PublishReadyToRun=true --output ./build
    ```
-3. Готовый файл `Edit_on_release.exe` будет находиться в папке `./build`.
+3. Find the compiled `Edit_on_release.exe` inside the `./build` directory.
 
 ---
 
-## ⚠️ Дисклеймер / Отказ от ответственности
+## ⚠️ Disclaimer
 
-Данное ПО является макросом, симулирующим ввод клавиатуры и мыши. Автор не несет ответственности за любые блокировки аккаунта (бан) или ограничения со стороны систем защиты Easy Anti-Cheat / BattlEye. Используйте на свой собственный страх и риск. Тем не менее, программа не внедряется в память игры и работает исключительно на уровне системного ввода Windows.
+This software is an external input simulation macro. Use it at your own risk. The developer is not responsible for any bans or actions taken by Easy Anti-Cheat, BattlEye, or Epic Games. While this tool does not inject into or read game memory, macro usage may violate Fortnite's Terms of Service.
