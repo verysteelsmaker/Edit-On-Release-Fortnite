@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Diagnostics;
 using System.Threading.Tasks;
 
@@ -9,7 +10,98 @@ namespace Edit_on_release
 {
     public class MainForm : Form
     {
-        // Win32 Hook API declarations
+        // ===================== Theme =====================
+        private static class Theme
+        {
+            public static readonly Color Background   = Color.FromArgb(17, 17, 21);
+            public static readonly Color Card         = Color.FromArgb(26, 26, 32);
+            public static readonly Color CardHover    = Color.FromArgb(34, 34, 42);
+            public static readonly Color Border       = Color.FromArgb(44, 44, 54);
+            public static readonly Color Accent       = Color.FromArgb(139, 92, 246);   // violet
+            public static readonly Color AccentSoft   = Color.FromArgb(46, 38, 70);
+            public static readonly Color Text         = Color.FromArgb(240, 240, 245);
+            public static readonly Color TextMuted    = Color.FromArgb(140, 140, 152);
+            public static readonly Color Green        = Color.FromArgb(52, 211, 153);
+            public static readonly Color GreenSoft    = Color.FromArgb(22, 46, 40);
+            public static readonly Color Red          = Color.FromArgb(248, 113, 113);
+            public static readonly Color RedSoft      = Color.FromArgb(52, 26, 30);
+        }
+
+        // ===================== Rounded UI helpers =====================
+        private static GraphicsPath RoundedRect(Rectangle bounds, int radius)
+        {
+            int d = radius * 2;
+            var path = new GraphicsPath();
+            path.AddArc(bounds.X, bounds.Y, d, d, 180, 90);
+            path.AddArc(bounds.Right - d - 1, bounds.Y, d, d, 270, 90);
+            path.AddArc(bounds.Right - d - 1, bounds.Bottom - d - 1, d, d, 0, 90);
+            path.AddArc(bounds.X, bounds.Bottom - d - 1, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
+        private class RoundedButton : Button
+        {
+            public int CornerRadius { get; set; } = 8;
+            public Color BorderColor { get; set; } = Theme.Border;
+            public Color HoverColor { get; set; } = Theme.CardHover;
+            private bool _hovered;
+
+            public RoundedButton()
+            {
+                FlatStyle = FlatStyle.Flat;
+                FlatAppearance.BorderSize = 0;
+                SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
+                Cursor = Cursors.Hand;
+            }
+
+            protected override void OnMouseEnter(EventArgs e) { _hovered = true; Invalidate(); base.OnMouseEnter(e); }
+            protected override void OnMouseLeave(EventArgs e) { _hovered = false; Invalidate(); base.OnMouseLeave(e); }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                e.Graphics.Clear(Parent?.BackColor ?? Theme.Background);
+
+                var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+                using var path = RoundedRect(rect, CornerRadius);
+                using var fill = new SolidBrush(_hovered ? HoverColor : BackColor);
+                using var pen = new Pen(BorderColor, 1);
+
+                e.Graphics.FillPath(fill, path);
+                e.Graphics.DrawPath(pen, path);
+
+                TextRenderer.DrawText(e.Graphics, Text, Font, rect, ForeColor,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            }
+        }
+
+        private class CardPanel : Panel
+        {
+            public int CornerRadius { get; set; } = 10;
+            public Color BorderColor { get; set; } = Theme.Border;
+
+            public CardPanel()
+            {
+                SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                e.Graphics.Clear(Parent?.BackColor ?? Theme.Background);
+
+                var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+                using var path = RoundedRect(rect, CornerRadius);
+                using var fill = new SolidBrush(BackColor);
+                using var pen = new Pen(BorderColor, 1);
+
+                e.Graphics.FillPath(fill, path);
+                e.Graphics.DrawPath(pen, path);
+            }
+        }
+
+        // ===================== Win32 Hook API declarations =====================
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelHookProc lpfn, IntPtr hMod, uint dwThreadId);
 
@@ -28,6 +120,16 @@ namespace Edit_on_release
 
         [DllImport("user32.dll")]
         private static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
+        // Window dragging
+        [DllImport("user32.dll")]
+        private static extern bool ReleaseCapture();
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, int lParam);
+
+        private const int WM_NCLBUTTONDOWN = 0x00A1;
+        private const int HT_CAPTION = 0x2;
 
         // Win32 constants
         private const int WH_KEYBOARD_LL = 13;
@@ -121,7 +223,7 @@ namespace Edit_on_release
 
         private delegate IntPtr LowLevelHookProc(int nCode, IntPtr wParam, IntPtr lParam);
 
-        // State variables
+        // ===================== State variables =====================
         private IntPtr _keyboardHookId = IntPtr.Zero;
         private IntPtr _mouseHookId = IntPtr.Zero;
         private LowLevelHookProc _keyboardHookProc;
@@ -157,12 +259,18 @@ namespace Edit_on_release
         private DateTime _editKeyTime = DateTime.MinValue;
         private readonly TimeSpan _editTimeout = TimeSpan.FromSeconds(2.0); // Reset edit state if LMB isn't pressed within 2s
 
-        // UI Controls
+        // ===================== UI Controls =====================
+        private Panel _titleBar;
         private Label _titleLabel;
-        private Label _statusLabel;
-        private Label _toggleInfoLabel;
-        private Button _bindButton;
+        private RoundedButton _closeButton;
+        private RoundedButton _minimizeButton;
+        private Label _keySectionLabel;
+        private RoundedButton _bindButton;
+        private CardPanel _statusCard;
         private Panel _statusIndicator;
+        private Label _statusLabel;
+        private RoundedButton _toggleButton;
+        private Label _footerLabel;
 
         public MainForm()
         {
@@ -174,71 +282,198 @@ namespace Edit_on_release
 
         private void InitializeUI()
         {
-            this.Text = "Fortnite Edit on Release";
-            this.Size = new Size(380, 260);
-            this.FormBorderStyle = FormBorderStyle.FixedSingle;
+            this.Text = "Edit on Release";
+            this.Size = new Size(380, 330);
+            this.FormBorderStyle = FormBorderStyle.None;
             this.MaximizeBox = false;
-            this.BackColor = Color.FromArgb(24, 24, 28);
+            this.BackColor = Theme.Background;
             this.StartPosition = FormStartPosition.CenterScreen;
+            this.Font = new Font("Segoe UI", 9);
 
-            // Title
+            // Rounded window corners
+            this.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, Width, Height, 16, 16));
+
+            // App icon (embedded via ApplicationIcon in csproj)
+            try
+            {
+                this.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+            }
+            catch { /* icon is cosmetic; ignore if extraction fails */ }
+
+            // -------- Custom title bar --------
+            _titleBar = new Panel
+            {
+                Location = new Point(0, 0),
+                Size = new Size(Width, 44),
+                BackColor = Theme.Background
+            };
+            _titleBar.MouseDown += TitleBar_MouseDown;
+            this.Controls.Add(_titleBar);
+
+            var iconBox = new PictureBox
+            {
+                Location = new Point(16, 12),
+                Size = new Size(20, 20),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.Transparent
+            };
+            if (this.Icon != null)
+                iconBox.Image = this.Icon.ToBitmap();
+            iconBox.MouseDown += TitleBar_MouseDown;
+            _titleBar.Controls.Add(iconBox);
+
             _titleLabel = new Label
             {
-                Text = "Edit on Release Macro",
-                Font = new Font("Segoe UI", 16, FontStyle.Bold),
-                ForeColor = Color.FromArgb(240, 240, 245),
-                Location = new Point(20, 20),
-                Size = new Size(340, 35),
-                TextAlign = ContentAlignment.MiddleLeft
+                Text = "Edit on Release",
+                Font = new Font("Segoe UI Semibold", 10.5f, FontStyle.Bold),
+                ForeColor = Theme.Text,
+                Location = new Point(42, 12),
+                AutoSize = true
             };
-            this.Controls.Add(_titleLabel);
+            _titleLabel.MouseDown += TitleBar_MouseDown;
+            _titleBar.Controls.Add(_titleLabel);
 
-            // Bind Button
-            _bindButton = new Button
+            _closeButton = new RoundedButton
             {
-                Text = $"Edit Key: {_editKey}",
-                Font = new Font("Segoe UI", 11, FontStyle.Regular),
-                BackColor = Color.FromArgb(45, 45, 52),
-                ForeColor = Color.FromArgb(230, 230, 235),
-                FlatStyle = FlatStyle.Flat,
-                Location = new Point(20, 75),
-                Size = new Size(320, 45),
-                Cursor = Cursors.Hand
+                Text = "\u2715",
+                Font = new Font("Segoe UI", 9),
+                Size = new Size(30, 26),
+                Location = new Point(Width - 42, 9),
+                BackColor = Theme.Background,
+                ForeColor = Theme.TextMuted,
+                HoverColor = Theme.RedSoft,
+                BorderColor = Theme.Background,
+                CornerRadius = 6
             };
-            _bindButton.FlatAppearance.BorderSize = 0;
+            _closeButton.Click += (s, e) => Close();
+            _titleBar.Controls.Add(_closeButton);
+
+            _minimizeButton = new RoundedButton
+            {
+                Text = "\u2013",
+                Font = new Font("Segoe UI", 9),
+                Size = new Size(30, 26),
+                Location = new Point(Width - 76, 9),
+                BackColor = Theme.Background,
+                ForeColor = Theme.TextMuted,
+                HoverColor = Theme.CardHover,
+                BorderColor = Theme.Background,
+                CornerRadius = 6
+            };
+            _minimizeButton.Click += (s, e) => WindowState = FormWindowState.Minimized;
+            _titleBar.Controls.Add(_minimizeButton);
+
+            // -------- Edit key section --------
+            _keySectionLabel = new Label
+            {
+                Text = "EDIT KEY",
+                Font = new Font("Segoe UI Semibold", 8, FontStyle.Bold),
+                ForeColor = Theme.TextMuted,
+                Location = new Point(22, 58),
+                AutoSize = true
+            };
+            this.Controls.Add(_keySectionLabel);
+
+            _bindButton = new RoundedButton
+            {
+                Text = _editKey.ToString(),
+                Font = new Font("Segoe UI Semibold", 13, FontStyle.Bold),
+                BackColor = Theme.Card,
+                ForeColor = Theme.Text,
+                HoverColor = Theme.CardHover,
+                BorderColor = Theme.Border,
+                CornerRadius = 10,
+                Location = new Point(20, 80),
+                Size = new Size(340, 56)
+            };
             _bindButton.Click += BindButton_Click;
             this.Controls.Add(_bindButton);
 
-            // Status Panel Indicator
+            // -------- Status card --------
+            _statusCard = new CardPanel
+            {
+                Location = new Point(20, 152),
+                Size = new Size(340, 68),
+                BackColor = Theme.Card,
+                BorderColor = Theme.Border,
+                CornerRadius = 10
+            };
+            this.Controls.Add(_statusCard);
+
             _statusIndicator = new Panel
             {
-                Location = new Point(23, 145),
-                Size = new Size(15, 15),
-                BackColor = Color.FromArgb(46, 204, 113) // Green initially
+                Location = new Point(20, 28),
+                Size = new Size(12, 12),
+                BackColor = Theme.Green
             };
-            this.Controls.Add(_statusIndicator);
+            _statusIndicator.Paint += (s, e) =>
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                e.Graphics.Clear(Theme.Card);
+                using var brush = new SolidBrush(_statusIndicator.BackColor);
+                e.Graphics.FillEllipse(brush, 0, 0, 11, 11);
+            };
+            _statusCard.Controls.Add(_statusIndicator);
 
-            // Status Label text
             _statusLabel = new Label
             {
-                Text = "Macro Active",
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                ForeColor = Color.FromArgb(46, 204, 113),
-                Location = new Point(45, 142),
-                Size = new Size(300, 20)
+                Text = "Macro active",
+                Font = new Font("Segoe UI Semibold", 10.5f, FontStyle.Bold),
+                ForeColor = Theme.Green,
+                Location = new Point(42, 24),
+                AutoSize = true
             };
-            this.Controls.Add(_statusLabel);
+            _statusCard.Controls.Add(_statusLabel);
 
-            // Toggle hotkey info
-            _toggleInfoLabel = new Label
+            _toggleButton = new RoundedButton
             {
-                Text = "Press F10 to toggle (Enable/Disable) globally",
-                Font = new Font("Segoe UI", 9, FontStyle.Italic),
-                ForeColor = Color.FromArgb(150, 150, 160),
-                Location = new Point(20, 180),
-                Size = new Size(320, 20)
+                Text = "Disable",
+                Font = new Font("Segoe UI Semibold", 9, FontStyle.Bold),
+                Size = new Size(88, 34),
+                Location = new Point(236, 17),
+                BackColor = Theme.GreenSoft,
+                ForeColor = Theme.Green,
+                HoverColor = Theme.CardHover,
+                BorderColor = Theme.Border,
+                CornerRadius = 8
             };
-            this.Controls.Add(_toggleInfoLabel);
+            _toggleButton.Click += (s, e) => ToggleActive();
+            _statusCard.Controls.Add(_toggleButton);
+
+            // -------- Footer hints --------
+            _footerLabel = new Label
+            {
+                Text = "F10 — toggle globally    •    Esc — cancel binding",
+                Font = new Font("Segoe UI", 8.5f),
+                ForeColor = Theme.TextMuted,
+                Location = new Point(0, 240),
+                Size = new Size(Width, 20),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            this.Controls.Add(_footerLabel);
+
+            var howToLabel = new Label
+            {
+                Text = "Press edit key \u2192 drag LMB \u2192 release to confirm edit",
+                Font = new Font("Segoe UI", 8.5f),
+                ForeColor = Theme.TextMuted,
+                Location = new Point(0, 266),
+                Size = new Size(Width, 20),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            this.Controls.Add(howToLabel);
+        }
+
+        [DllImport("gdi32.dll")]
+        private static extern IntPtr CreateRoundRectRgn(int nLeft, int nTop, int nRight, int nBottom, int nWidthEllipse, int nHeightEllipse);
+
+        private void TitleBar_MouseDown(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                ReleaseCapture();
+                SendMessage(Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
+            }
         }
 
         protected override void OnLoad(EventArgs e)
@@ -266,17 +501,43 @@ namespace Edit_on_release
 
         private void BindButton_Click(object sender, EventArgs e)
         {
+            StartBinding();
+        }
+
+        private void StartBinding()
+        {
             _isBinding = true;
-            _bindButton.Text = "Press any Key or Mouse Button...";
-            _bindButton.BackColor = Color.FromArgb(90, 50, 150);
+            _bindButton.Text = "Press any key or mouse button\u2026";
+            _bindButton.Font = new Font("Segoe UI", 10.5f);
+            _bindButton.BackColor = Theme.AccentSoft;
+            _bindButton.HoverColor = Theme.AccentSoft;
+            _bindButton.ForeColor = Theme.Accent;
+            _bindButton.BorderColor = Theme.Accent;
+            _bindButton.Invalidate();
+        }
+
+        private void CancelBinding()
+        {
+            _isBinding = false;
+            ResetBindButtonVisuals();
         }
 
         private void RegisterKey(BoundKey key)
         {
             _editKey = key;
             _isBinding = false;
-            _bindButton.Text = $"Edit Key: {_editKey}";
-            _bindButton.BackColor = Color.FromArgb(45, 45, 52);
+            ResetBindButtonVisuals();
+        }
+
+        private void ResetBindButtonVisuals()
+        {
+            _bindButton.Text = _editKey.ToString();
+            _bindButton.Font = new Font("Segoe UI Semibold", 13, FontStyle.Bold);
+            _bindButton.BackColor = Theme.Card;
+            _bindButton.HoverColor = Theme.CardHover;
+            _bindButton.ForeColor = Theme.Text;
+            _bindButton.BorderColor = Theme.Border;
+            _bindButton.Invalidate();
         }
 
         private void ToggleActive()
@@ -284,18 +545,26 @@ namespace Edit_on_release
             _isActive = !_isActive;
             if (_isActive)
             {
-                _statusIndicator.BackColor = Color.FromArgb(46, 204, 113);
-                _statusLabel.Text = "Macro Active";
-                _statusLabel.ForeColor = Color.FromArgb(46, 204, 113);
+                _statusIndicator.BackColor = Theme.Green;
+                _statusLabel.Text = "Macro active";
+                _statusLabel.ForeColor = Theme.Green;
+                _toggleButton.Text = "Disable";
+                _toggleButton.BackColor = Theme.GreenSoft;
+                _toggleButton.ForeColor = Theme.Green;
             }
             else
             {
-                _statusIndicator.BackColor = Color.FromArgb(231, 76, 60);
-                _statusLabel.Text = "Macro Inactive";
-                _statusLabel.ForeColor = Color.FromArgb(231, 76, 60);
+                _statusIndicator.BackColor = Theme.Red;
+                _statusLabel.Text = "Macro inactive";
+                _statusLabel.ForeColor = Theme.Red;
+                _toggleButton.Text = "Enable";
+                _toggleButton.BackColor = Theme.RedSoft;
+                _toggleButton.ForeColor = Theme.Red;
                 _editKeyPressed = false;
                 _holdingLMB = false;
             }
+            _statusIndicator.Invalidate();
+            _toggleButton.Invalidate();
         }
 
         private IntPtr HookCallbackKeyboard(int nCode, IntPtr wParam, IntPtr lParam)
@@ -318,6 +587,11 @@ namespace Edit_on_release
 
                     if (_isBinding)
                     {
+                        if (key == Keys.Escape)
+                        {
+                            CancelBinding();
+                            return (IntPtr)1;
+                        }
                         // Skip system keys or Alt/Ctrl keys if desired, but here we just bind whatever they press
                         if (key != Keys.F10)
                         {
@@ -413,7 +687,6 @@ namespace Edit_on_release
                             _editKeyPressed = false;
                             _holdingLMB = false;
 
-                            // Release the hooks block momentarily or run simulation asynchronously?
                             // Win32 hooks run on the GUI thread, so simulating directly is fine as long as we flag injected
                             TriggerEditKey();
                         }

@@ -11,8 +11,8 @@ It automatically confirms your building edits as soon as you release the Left Mo
 * **Low Latency**: Built using low-level global Windows hooks (`SetWindowsHookEx`) and `SendInput` API for direct input injection.
 * **Universal Bindings**: Works with keyboard keys and mouse buttons (Right Click, Middle Click, Side Buttons XButton1/XButton2).
 * **Game Engine Compatibility**: Simulates hardware **Scan Codes** (via `MapVirtualKey`) and implements a micro-delay (15ms) between key-down and key-up events, which is necessary for Unreal Engine to process the input correctly.
-* **Instant Toggle**: Use the global hotkey **`F10`** to enable or disable the macro instantly while in-game without alt-tabbing.
-* **Sleek Dark GUI**: Minimalist dark-themed user interface with a real-time status indicator.
+* **Instant Toggle**: Use the global hotkey **`F10`** or the in-app **Enable/Disable** button to toggle the macro instantly while in-game without alt-tabbing.
+* **Sleek Dark GUI**: Modern borderless dark interface with rounded corners, hover effects, a real-time status card, and a custom app icon. Press **`Esc`** to cancel key binding.
 * **Zero Dependencies**: Compiled as a self-contained single-file executable (`.exe`). Runs out of the box without requiring .NET installation.
 
 ---
