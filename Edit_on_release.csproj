@@ -9,6 +9,8 @@
     <ApplicationIcon>assets\icon.ico</ApplicationIcon>
     <AssemblyTitle>Edit on Release</AssemblyTitle>
     <Product>Edit on Release</Product>
+    <!-- Exclude build/publish output and backup folders from compilation -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);build/**;publish/**;backup/**;old/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
