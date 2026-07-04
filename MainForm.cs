@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Drawing;
@@ -42,8 +43,11 @@ namespace Edit_on_release
 
         private class RoundedButton : Button
         {
+            [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
             public int CornerRadius { get; set; } = 8;
+            [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
             public Color BorderColor { get; set; } = Theme.Border;
+            [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
             public Color HoverColor { get; set; } = Theme.CardHover;
             private bool _hovered;
 
@@ -78,7 +82,9 @@ namespace Edit_on_release
 
         private class CardPanel : Panel
         {
+            [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
             public int CornerRadius { get; set; } = 10;
+            [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
             public Color BorderColor { get; set; } = Theme.Border;
 
             public CardPanel()
